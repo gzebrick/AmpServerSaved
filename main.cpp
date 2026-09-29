@@ -24,7 +24,7 @@ eSPI settings needed for 2.8" 240x320:
 #include <Preferences.h> // For non-volatile memory
 #include <ESPmDNS.h>     // Header for mDNS functions
 
-String Ver = "011"; // Status text
+String Ver = "012a"; // Status text
 // Custom name for your web page (e.g., http://myboard.local)
 const char *mdnsName = "AmpServer";
 
@@ -289,6 +289,7 @@ void setup() // ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
   ts.setRotation(1);
   tft.println(String(mdnsName) + " version " + Ver);
   tft.println("Starting CYD Setup");
+  RS232Serial.end();
   delay(500);
   // Start RS232 serial port (38400 baud, standard 8N1 configuration)
   RS232Serial.begin(38400, SERIAL_8N1, RXD2, TXD2);
@@ -807,7 +808,7 @@ void recvWithEndMarker() // rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
   static byte ndx = 0;
   char endMarker = ';';
   char rc;
-  delay(75); // was 50 - 18 seems to work well
+  delay(55); // was 50 - 18 seems to work well
   // Serial.print(" - RS232 buffer: " + String(RS232Serial.available()));
   while (RS232Serial.available() > 0 && newData == false)
   {
@@ -838,7 +839,10 @@ void recvWithEndMarker() // rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
 void pollAmp()
 {
   recvWithEndMarker();
+
   // Check the status of the amplifier by sending a command to it and reading the response
+  RS232Serial.print("^ON;");
+  recvWithEndMarker();
   RS232Serial.print("^ON;");
   recvWithEndMarker();
   if (inString == "^ON1")
@@ -1226,24 +1230,29 @@ void drawAmpValues()
     tft.drawString("TEMP F", 135, 225, 2);
   }
 
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString("        ", 10, 250, 6);
   if ((OnMode == "Power is OFF") or (OnMode == "null"))
   {
     tft.setTextColor(0x3987, TFT_BLACK);
   }
-  if (PoWatts > 0)
+  if (PaAmps > 0.1)
+  {
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  if (PoWatts > 500)
+  }
+  if ((PoWatts > 500 && (PaAmps > 0.1)))
   {
     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
   }
-  if (PoWatts > 550)
+  if ((PoWatts > 550) && (PaAmps > 0.1))
   {
     tft.setTextColor(TFT_RED, TFT_BLACK);
   }
   tft.drawString(String(PoWatts), 10, 250, 6);
 
-  if (PoSwr > 0)
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+
+  if (PaAmps > 0.1)
   {
     tft.setTextColor(TFT_GREEN, TFT_BLACK);
   }
@@ -1988,9 +1997,10 @@ void serveWebPage()
             client.print("<br>");
 
             client.print(mdnsName);
-            client.printf(" Version %s.  Refresh: 2 secs. WiFi: ", Ver);
+            client.printf(" Ver %s.  Refresh: 2s. WiFi: ", Ver);
             client.print(WiFi.SSID());
-            client.print(". Connected   ");
+            client.print(". Connected ");
+            client.print(WiFi.macAddress());
             client.print(" @ ");
             client.print(WiFi.localIP());
             long rssiLong = WiFi.RSSI();
